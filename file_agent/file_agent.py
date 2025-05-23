@@ -205,8 +205,18 @@ def create_file(path=".", filename=None, content=None):
     if content is None:
         content = ""
     full = os.path.join(path, filename)
+    
     if os.path.exists(full):
-        return f"[red]File already exists:[/] {full}", None
+        console.print(f"[yellow]File '{full}' already exists. Overwrite? (y/n)[/]")
+        response = input().strip().lower()
+        if response != "y":
+            return f"[yellow]File creation cancelled[/]", None
+        # Explicitly remove existing file before creating new one
+        try:
+            os.remove(full)
+        except OSError as e:
+            return f"[red]Error removing existing file:[/] {str(e)}", None
+    
     try:
         os.makedirs(path, exist_ok=True)
         with open(full, "w") as f:
@@ -317,6 +327,17 @@ def move_file(source_path=".", filename=None, dest_path="."):
 @tool
 def create_directory(path="."):
     """Create a new directory at the specified path. Returns a string summary and None."""
+    if os.path.exists(path):
+        console.print(f"[yellow]Directory '{path}' already exists. Overwrite? (y/n)[/]")
+        response = input().strip().lower()
+        if response != "y":
+            return f"[yellow]Directory creation cancelled[/]", None
+        # Remove existing directory and contents
+        try:
+            shutil.rmtree(path)
+        except OSError as e:
+            return f"[red]Error removing existing directory:[/] {str(e)}", None
+    
     try:
         os.makedirs(path, exist_ok=True)
         return f"[green]Directory created:[/] {path}", None
