@@ -398,6 +398,107 @@ def count_lines_in_file(path=".", filename=None):
         return f"[red]Error counting lines in file:[/] {str(e)}", None
 
 @tool
+def find_large_files(min_size_mb: float, path="."):
+    """
+    Find files larger than specified MB size in a directory (searches recursively). 
+    Returns a string summary and list of large files.
+    Args:
+        min_size_mb: Minimum file size in megabytes to search for
+        path: Directory path to search in
+    """
+    import os
+    try:
+        min_bytes = min_size_mb * 1024 * 1024
+        large_files = []
+        
+        for root, _, files in os.walk(path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    size = os.path.getsize(file_path)
+                    if size > min_bytes:
+                        large_files.append((file_path, size / (1024*1024)))
+                except OSError:
+                    continue
+
+        if not large_files:
+            return f"[yellow]No files larger than {min_size_mb}MB found in {path}[/]", []
+
+        # Create table with Rich
+        table = Table(title=f"Files larger than {min_size_mb}MB in {path}", box=box.ROUNDED)
+        table.add_column("File Path", style="cyan")
+        table.add_column("Size (MB)", justify="right")
+        
+        for path, size in sorted(large_files, key=lambda x: -x[1]):
+            table.add_row(path, f"{size:.2f}")
+        
+        console.print(table)
+        return f"Found {len(large_files)} files larger than {min_size_mb}MB in {path}", large_files
+
+    except Exception as e:
+        return f"[red]Error searching for large files:[/] {str(e)}", []
+
+@tool
+def search_text_across_files(pattern: str, directory="."):
+    """
+    Search for a regex pattern across all text files in a directory (searches recursively).
+    Returns a string summary and list of matches with line numbers.
+    Args:
+        pattern: Regular expression pattern to search for
+        directory: Root directory to search from
+    """
+    import os
+    try:
+        compiled_pattern = re.compile(pattern, re.IGNORECASE)
+        matches = []
+        
+        for root, _, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    # Skip binary files
+                    with open(file_path, 'rb') as f:
+                        if b'\x00' in f.read(1024):
+                            continue
+                    
+                    # Try to read as text
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        for line_num, line in enumerate(f, 1):
+                            if compiled_pattern.search(line):
+                                matches.append({
+                                    'file': file_path,
+                                    'line': line_num,
+                                    'content': line.strip()
+                                })
+                except (OSError, UnicodeDecodeError):
+                    continue
+
+        if not matches:
+            return f"[yellow]No matches for pattern '{pattern}' found in {directory}[/]", []
+
+        # Create table with Rich
+        table = Table(title=f"Matches for '{pattern}' in {directory}", box=box.ROUNDED)
+        table.add_column("File", style="cyan")
+        table.add_column("Line", justify="right")
+        table.add_column("Content", style="green")
+        
+        for match in matches[:50]:  # Limit to top 50 matches
+            table.add_row(
+                match['file'], 
+                str(match['line']), 
+                match['content'][:100] + "..." if len(match['content']) > 100 else match['content']
+            )
+        
+        console.print(table)
+        extra = f"\n[yellow](Showing first 50 of {len(matches)} matches)[/]" if len(matches) > 50 else ""
+        return f"Found {len(matches)} matches for pattern '{pattern}' in {directory}{extra}", matches
+
+    except re.error as e:
+        return f"[red]Invalid regex pattern:[/] {str(e)}", []
+    except Exception as e:
+        return f"[red]Error during search:[/] {str(e)}", []
+
+@tool
 def search_file_content(path=".", filename=None, search_term=None):
     """
     Search for text content in a file. Returns matching lines with numbers.
@@ -560,6 +661,10 @@ You are an AI agent that chooses tools to execute based on a user's command, han
 
 Available tools:
 {{AVAILABLE_TOOLS}}
+
+New advanced search tools added:
+- find_large_files(min_size_mb: float, path="."): Find files larger than specified MB size recursively
+- search_text_across_files(pattern: str, directory="."): Search regex pattern across all text files recursively
 
 <instructions>
 <instruction>
