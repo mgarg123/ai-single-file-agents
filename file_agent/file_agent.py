@@ -670,6 +670,11 @@ Command: "list all files in C: directory"
 Total operations: 1
 Step 1: {{"tool": "list_files", "args": {{path": "C:\\"}}, "done": true}}
 </example>
+<example>
+Command: "search for 'error' in log.txt"
+Total operations: 1
+Step 1: {{"tool": "search_file_content", "args": {{"filename": "log.txt", "search_term": "error"}}, "done": true}}
+</example>
 </examples>
 
 Return ONLY valid JSON. No markdown, explanations, or extra text.
