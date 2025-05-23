@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import re
+import hashlib
 import inspect
 import datetime
 from rich.console import Console
@@ -569,6 +570,81 @@ def list_directories(path="."):
         table.add_row(directory)
     console.print(table)
     return f"[green]Directories in {path}: {', '.join(dirs)}[/]", dirs
+
+@tool
+def find_duplicate_files(dir_path="."):
+    """
+    Find duplicate files by content hash in a directory (searches recursively).
+    Returns a string summary and list of duplicate groups.
+    Args:
+        dir_path: Directory path to search in
+    """
+    import hashlib
+    from collections import defaultdict
+    
+    try:
+        hashes = defaultdict(list)
+        for root, _, files in os.walk(dir_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if os.path.isfile(file_path):
+                    try:
+                        with open(file_path, "rb") as f:
+                            file_hash = hashlib.md5(f.read()).hexdigest()
+                        hashes[file_hash].append(file_path)
+                    except OSError:
+                        continue
+
+        duplicates = {h: paths for h, paths in hashes.items() if len(paths) > 1}
+        if not duplicates:
+            return f"[yellow]No duplicate files found in {dir_path}[/]", []
+
+        table = Table(title=f"Duplicate Files in {dir_path}", box=box.ROUNDED)
+        table.add_column("Hash", style="cyan")
+        table.add_column("Files", style="yellow")
+        
+        for hash_val, paths in duplicates.items():
+            table.add_row(hash_val[:8], "\n".join(paths))
+        
+        console.print(table)
+        return f"Found {len(duplicates)} groups of duplicate files in {dir_path}", duplicates
+    except Exception as e:
+        return f"[red]Error finding duplicates:[/] {str(e)}", []
+
+@tool
+def remove_duplicates(dir_path="."):
+    """
+    Auto-remove redundant file copies with user confirmation. 
+    Keeps the first file in each duplicate group and deletes others.
+    Returns a string summary and None.
+    """
+    try:
+        # First find duplicates
+        result, duplicates = find_duplicate_files(dir_path)
+        if "No duplicate" in result:
+            return result, None
+            
+        console.print("[yellow]WARNING: This will delete duplicate files, keeping only the first copy in each group.[/]")
+        console.print("[yellow]Are you sure you want to continue? (y/n)[/]")
+        response = input().strip().lower()
+        if response != "y":
+            return "[yellow]Duplicate removal cancelled[/]", None
+
+        total_removed = 0
+        for hash_group, files in duplicates.items():
+            # Keep first file, delete others
+            keeper = files[0]
+            for file in files[1:]:
+                try:
+                    os.remove(file)
+                    total_removed += 1
+                    console.print(f"[green]Removed duplicate:[/] {file}")
+                except OSError as e:
+                    console.print(f"[red]Error removing {file}:[/] {str(e)}")
+
+        return f"[green]Removed {total_removed} duplicate files, keeping originals intact[/]", None
+    except Exception as e:
+        return f"[red]Error removing duplicates:[/] {str(e)}", None
 
 @tool
 def get_file_metadata(path=".", filename=None, attribute="all"):
