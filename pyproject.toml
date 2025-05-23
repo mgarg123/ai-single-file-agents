@@ -1,0 +1,12 @@
+[project]
+name = "sfa-test"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dotenv>=0.9.9",
+    "groq>=0.25.0",
+    "psutil>=7.0.0",
+    "rich>=14.0.0",
+]
