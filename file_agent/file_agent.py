@@ -391,7 +391,7 @@ def count_lines_in_file(path=".", filename=None):
     if not os.path.isfile(full):
         return f"[red]File not found:[/] {full}", None
     try:
-        with open(full, "r") as f:
+        with open(full, "r", encoding='utf-8', errors='ignore') as f:
             line_count = sum(1 for _ in f)
         return f"[green]File {full} contains {line_count} line(s)[/]", None
     except OSError as e:
