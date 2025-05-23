@@ -398,6 +398,44 @@ def count_lines_in_file(path=".", filename=None):
         return f"[red]Error counting lines in file:[/] {str(e)}", None
 
 @tool
+def search_file_content(path=".", filename=None, search_term=None):
+    """
+    Search for text content in a file. Returns matching lines with numbers.
+    Args:
+        path: Directory path containing the file
+        filename: Name of file to search
+        search_term: Text to search for (case-insensitive)
+    Returns:
+        Tuple of (result message, list of matching lines)
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", []
+    if not search_term:
+        return "[red]No search term provided.[/]", []
+
+    full_path = os.path.join(path, filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", []
+
+    try:
+        matches = []
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line_num, line in enumerate(f, 1):
+                if search_term.lower() in line.lower():
+                    matches.append(f"Line {line_num}: {line.strip()}")
+
+        if not matches:
+            return f"[yellow]No matches found for '{search_term}' in {filename}[/]", []
+        
+        console.print(f"[green]Found {len(matches)} match(es) for '{search_term}' in {filename}:[/]")
+        for match in matches:
+            console.print(match)
+            
+        return f"Searched for '{search_term}' in {filename}", matches
+    except Exception as e:
+        return f"[red]Error searching file:[/] {str(e)}", []
+
+@tool
 def list_directories(path="."):
     """List all directories (not files) in the given directory. Returns a string summary and a list of directory names."""
     if not os.path.isdir(path):
