@@ -659,12 +659,8 @@ AVAILABLE_TOOLS = generate_tools_doc()
 TOOLS_DOC = f"""
 You are an AI agent that chooses tools to execute based on a user's command, handling both single-step and multi-step tasks to achieve a final solution.
 
-Available tools:
-{{AVAILABLE_TOOLS}}
-
-New advanced search tools added:
-- find_large_files(min_size_mb: float, path="."): Find files larger than specified MB size recursively
-- search_text_across_files(pattern: str, directory="."): Search regex pattern across all text files recursively
+Below is the list of Available tools from which you need to select one which is relevant:
+{AVAILABLE_TOOLS}
 
 <instructions>
 <instruction>
@@ -689,24 +685,9 @@ Track progress using conversation history, not hardcoded sequences
 </instruction>
 
 <instruction>
-Choose appropriate validation based on operation type:
-- After create_file → use file_exists to confirm creation (if needed)
-- After rename_file → use file_exists on NEW filename to confirm rename (if needed) 
-- After delete_file → use file_exists to confirm file gone (if needed)
-- After add_content_to_file → use view_file to verify content (if needed)
-- After copy_file → use file_exists on destination to confirm copy (if needed)
-- After move_file → use file_exists on destination and check source gone (if needed)
-- After create_directory → check directory exists with os.path.isdir (if needed)
-- After delete_directory → check directory gone with os.path.isdir (if needed)
-- After replace_text_in_file → use view_file to verify content (if needed)
-- After count_lines_in_file → no validation needed
-- After list_directories → no validation needed
-- After get_file_metadata → no validation 
-- After check_os -> no validation
-- After get_root_directory -> no validation
-- After get_command_line_directory -> no validation
-- After system_resources -> no validation
-- Only validate when critical or when command specifically requests verification
+Choose appropriate validation tools from the above list before or after performing the operations to validate according to the need.
+For example when creating a new file with given filename we can call file_exist tool to see if file is already created with that name and so on.
+If validation is not required for the given operation then don't do the validation.
 </instruction>
 
 <instruction>
