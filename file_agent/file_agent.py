@@ -8,10 +8,14 @@ import datetime
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from rich.tree import Tree
+from rich.text import Text
 from groq import Groq
 from collections import Counter
 import shutil
 import psutil
+import filecmp # Added import for filecmp
+import tempfile # Added import for tempfile
 
 from dotenv import load_dotenv
 
@@ -227,24 +231,6 @@ def create_file(path=".", filename=None, content=None):
         return f"[red]Error creating file:[/] {str(e)}", None
 
 @tool
-def search_file_content(path=".", filename=None, keyword=None):
-    """Search for a keyword in the file's content and return matching lines. Returns a string summary and None."""
-    if not filename:
-        return "[red]No filename provided.[/]", None
-    if not keyword:
-        return "[red]No keyword provided.[/]", None
-    full = os.path.join(path, filename)
-    if not os.path.isfile(full):
-        return f"[red]File not found:[/] {full}", None
-    with open(full, "r") as f:
-        lines = f.readlines()
-    matches = [f"Line {i+1}: {line.strip()}" for i, line in enumerate(lines) if keyword.lower() in line.lower()]
-    if not matches:
-        return f"[yellow]No matches found for '{keyword}' in {full}[/]", None
-    result = f"[green]Found '{keyword}' in {len(matches)} line(s) in {full}:[/]\n" + "\n".join(matches)
-    return result, None
-
-@tool
 def delete_file(path=".", filename=None):
     """Delete the specified file in the given directory after user confirmation. Returns a string summary and None."""
     if not filename:
@@ -293,18 +279,27 @@ def add_content_to_file(path=".", filename=None, content=None, append=True):
         return f"[red]Error adding content to file:[/] {str(e)}", None
 
 @tool
-def copy_file(source_path=".", filename=None, dest_path="."):
-    """Copy a file from source_path to dest_path. Returns a string summary and None."""
+def copy_file(source_path=".", filename=None, dest_path=".", dest_filename=None):
+    """
+    Copy a file from source_path to dest_path.
+    Optionally, rename the file in the destination using dest_filename.
+    Returns a string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
-    source_full = os.path.join(source_path, filename)
-    dest_full = os.path.join(dest_path, filename)
+    
+    source_full = os.path.join(normalize_path(source_path), filename)
+    
     if not os.path.isfile(source_full):
         return f"[red]Source file not found:[/] {source_full}", None
+    
+    # Determine the final destination file path
+    final_dest_filename = dest_filename if dest_filename is not None else filename
+    dest_full = os.path.join(normalize_path(dest_path), final_dest_filename)
+
     try:
-        os.makedirs(dest_path, exist_ok=True)
-        with open(source_full, "rb") as src, open(dest_full, "wb") as dst:
-            dst.write(src.read())
+        os.makedirs(os.path.dirname(dest_full), exist_ok=True) # Ensure destination directory exists
+        shutil.copy2(source_full, dest_full) # Use shutil.copy2 for robust copying
         return f"[green]File copied:[/] {source_full} → {dest_full}", None
     except OSError as e:
         return f"[red]Error copying file:[/] {str(e)}", None
@@ -314,12 +309,12 @@ def move_file(source_path=".", filename=None, dest_path="."):
     """Move a file from source_path to dest_path. Returns a string summary and None."""
     if not filename:
         return "[red]No filename provided.[/]", None
-    source_full = os.path.join(source_path, filename)
-    dest_full = os.path.join(dest_path, filename)
+    source_full = os.path.join(normalize_path(source_path), filename)
+    dest_full = os.path.join(normalize_path(dest_path), filename)
     if not os.path.isfile(source_full):
         return f"[red]Source file not found:[/] {source_full}", None
     try:
-        os.makedirs(dest_path, exist_ok=True)
+        os.makedirs(os.path.dirname(dest_full), exist_ok=True) # Ensure destination directory exists
         os.rename(source_full, dest_full)
         return f"[green]File moved:[/] {source_full} → {dest_full}", None
     except OSError as e:
@@ -328,35 +323,37 @@ def move_file(source_path=".", filename=None, dest_path="."):
 @tool
 def create_directory(path="."):
     """Create a new directory at the specified path. Returns a string summary and None."""
-    if os.path.exists(path):
-        console.print(f"[yellow]Directory '{path}' already exists. Overwrite? (y/n)[/]")
+    normalized_path = normalize_path(path)
+    if os.path.exists(normalized_path):
+        console.print(f"[yellow]Directory '{normalized_path}' already exists. Overwrite? (y/n)[/]")
         response = input().strip().lower()
         if response != "y":
             return f"[yellow]Directory creation cancelled[/]", None
         # Remove existing directory and contents
         try:
-            shutil.rmtree(path)
+            shutil.rmtree(normalized_path)
         except OSError as e:
             return f"[red]Error removing existing directory:[/] {str(e)}", None
     
     try:
-        os.makedirs(path, exist_ok=True)
-        return f"[green]Directory created:[/] {path}", None
+        os.makedirs(normalized_path, exist_ok=True)
+        return f"[green]Directory created:[/] {normalized_path}", None
     except OSError as e:
         return f"[red]Error creating directory:[/] {str(e)}", None
 
 @tool
 def delete_directory(path="."):
     """Delete a directory at the specified path, even if it is not empty, after user confirmation. Returns a string summary and None."""
-    if not os.path.isdir(path):
-        return f"[red]Directory not found:[/] {path}", None
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found:[/] {normalized_path}", None
     try:
-        console.print(f"[yellow]Are you sure you want to delete the directory '{path}' and all of its contents? (y/n)[/]")
+        console.print(f"[yellow]Are you sure you want to delete the directory '{normalized_path}' and all of its contents? (y/n)[/]")
         response = input().strip().lower()
         if response != "y":
-            return f"[yellow]Deletion of {path} cancelled.[/]", None
-        shutil.rmtree(path)
-        return f"[green]Directory and its contents deleted:[/] {path}", None
+            return f"[yellow]Deletion of {normalized_path} cancelled.[/]", None
+        shutil.rmtree(normalized_path)
+        return f"[green]Directory and its contents deleted:[/] {normalized_path}", None
     except Exception as e:
         return f"[red]Error deleting directory:[/] {str(e)}", None
 
@@ -365,20 +362,21 @@ def search_files_by_name(path=".", pattern=None):
     """Search for files by name matching the pattern in the given directory. Returns a string summary and a list of matching filenames."""
     if not pattern:
         return "[red]No pattern provided.[/]", []
-    if not os.path.isdir(path):
-        return f"[red]Directory not found:[/] {path}", []
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found:[/] {normalized_path}", []
     try:
         pattern = pattern.replace("*", ".*").replace("?", ".")
         regex = re.compile(pattern, re.IGNORECASE)
-        matches = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and regex.match(f)]
+        matches = [f for f in os.listdir(normalized_path) if os.path.isfile(os.path.join(normalized_path, f)) and regex.match(f)]
         if not matches:
-            return f"[yellow]No files found matching '{pattern}' in {path}[/]", []
-        table = Table(title=f"Files matching '{pattern}' in {path}")
+            return f"[yellow]No files found matching '{pattern}' in {normalized_path}[/]", []
+        table = Table(title=f"Files matching '{pattern}' in {normalized_path}")
         table.add_column("Filename", style="cyan")
         for match in matches:
             table.add_row(match)
         console.print(table)
-        return f"[green]Found {len(matches)} file(s) matching '{pattern}' in {path}:[/] {', '.join(matches)}", matches
+        return f"[green]Found {len(matches)} file(s) matching '{pattern}' in {normalized_path}:[/] {', '.join(matches)}", matches
     except re.error as e:
         return f"[red]Invalid pattern:[/] {str(e)}", []
 
@@ -391,7 +389,7 @@ def replace_text_in_file(path=".", filename=None, old_text=None, new_text=None):
         return "[red]No text to replace provided.[/]", None
     if new_text is None:
         return "[red]No replacement text provided.[/]", None
-    full = os.path.join(path, filename)
+    full = os.path.join(normalize_path(path), filename)
     if not os.path.isfile(full):
         return f"[red]File not found:[/] {full}", None
     try:
@@ -409,7 +407,7 @@ def count_lines_in_file(path=".", filename=None):
     """Count the total number of lines in the specified file. Returns a string summary and None."""
     if not filename:
         return "[red]No filename provided.[/]", None
-    full = os.path.join(path, filename)
+    full = os.path.join(normalize_path(path), filename)
     if not os.path.isfile(full):
         return f"[red]File not found:[/] {full}", None
     try:
@@ -432,8 +430,9 @@ def find_large_files(min_size_mb: float, path="."):
     try:
         min_bytes = min_size_mb * 1024 * 1024
         large_files = []
+        normalized_path = normalize_path(path)
         
-        for root, _, files in os.walk(path):
+        for root, _, files in os.walk(normalized_path):
             for file in files:
                 file_path = os.path.join(root, file)
                 try:
@@ -444,10 +443,10 @@ def find_large_files(min_size_mb: float, path="."):
                     continue
 
         if not large_files:
-            return f"[yellow]No files larger than {min_size_mb}MB found in {path}[/]", []
+            return f"[yellow]No files larger than {min_size_mb}MB found in {normalized_path}[/]", []
 
         # Create table with Rich
-        table = Table(title=f"Files larger than {min_size_mb}MB in {path}", box=box.ROUNDED)
+        table = Table(title=f"Files larger than {min_size_mb}MB in {normalized_path}", box=box.ROUNDED)
         table.add_column("File Path", style="cyan")
         table.add_column("Size (MB)", justify="right")
         
@@ -455,7 +454,7 @@ def find_large_files(min_size_mb: float, path="."):
             table.add_row(path, f"{size:.2f}")
         
         console.print(table)
-        return f"Found {len(large_files)} files larger than {min_size_mb}MB in {path}", large_files
+        return f"Found {len(large_files)} files larger than {min_size_mb}MB in {normalized_path}", large_files
 
     except Exception as e:
         return f"[red]Error searching for large files:[/] {str(e)}", []
@@ -473,8 +472,9 @@ def search_text_across_files(pattern: str, directory="."):
     try:
         compiled_pattern = re.compile(pattern, re.IGNORECASE)
         matches = []
+        normalized_directory = normalize_path(directory)
         
-        for root, _, files in os.walk(directory):
+        for root, _, files in os.walk(normalized_directory):
             for file in files:
                 file_path = os.path.join(root, file)
                 try:
@@ -496,10 +496,10 @@ def search_text_across_files(pattern: str, directory="."):
                     continue
 
         if not matches:
-            return f"[yellow]No matches for pattern '{pattern}' found in {directory}[/]", []
+            return f"[yellow]No matches for pattern '{pattern}' found in {normalized_directory}[/]", []
 
         # Create table with Rich
-        table = Table(title=f"Matches for '{pattern}' in {directory}", box=box.ROUNDED)
+        table = Table(title=f"Matches for '{pattern}' in {normalized_directory}", box=box.ROUNDED)
         table.add_column("File", style="cyan")
         table.add_column("Line", justify="right")
         table.add_column("Content", style="green")
@@ -513,7 +513,7 @@ def search_text_across_files(pattern: str, directory="."):
         
         console.print(table)
         extra = f"\n[yellow](Showing first 50 of {len(matches)} matches)[/]" if len(matches) > 50 else ""
-        return f"Found {len(matches)} matches for pattern '{pattern}' in {directory}{extra}", matches
+        return f"Found {len(matches)} matches for pattern '{pattern}' in {normalized_directory}{extra}", matches
 
     except re.error as e:
         return f"[red]Invalid regex pattern:[/] {str(e)}", []
@@ -536,7 +536,7 @@ def search_file_content(path=".", filename=None, search_term=None):
     if not search_term:
         return "[red]No search term provided.[/]", []
 
-    full_path = os.path.join(path, filename)
+    full_path = os.path.join(normalize_path(path), filename)
     if not os.path.isfile(full_path):
         return f"[red]File not found:[/] {full_path}", []
 
@@ -561,15 +561,16 @@ def search_file_content(path=".", filename=None, search_term=None):
 @tool
 def list_directories(path="."):
     """List all directories (not files) in the given directory. Returns a string summary and a list of directory names."""
-    if not os.path.isdir(path):
-        return f"[red]Directory not found:[/] {path}", []
-    table = Table(title=f"Directories in {path}")
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found:[/] {normalized_path}", []
+    table = Table(title=f"Directories in {normalized_path}")
     table.add_column("Directory", style="cyan")
-    dirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    dirs = [d for d in os.listdir(normalized_path) if os.path.isdir(os.path.join(normalized_path, d))]
     for directory in dirs:
         table.add_row(directory)
     console.print(table)
-    return f"[green]Directories in {path}: {', '.join(dirs)}[/]", dirs
+    return f"[green]Directories in {normalized_path}: {', '.join(dirs)}[/]", dirs
 
 @tool
 def find_duplicate_files(dir_path="."):
@@ -584,7 +585,8 @@ def find_duplicate_files(dir_path="."):
     
     try:
         hashes = defaultdict(list)
-        for root, _, files in os.walk(dir_path):
+        normalized_dir_path = normalize_path(dir_path)
+        for root, _, files in os.walk(normalized_dir_path):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.isfile(file_path):
@@ -597,9 +599,9 @@ def find_duplicate_files(dir_path="."):
 
         duplicates = {h: paths for h, paths in hashes.items() if len(paths) > 1}
         if not duplicates:
-            return f"[yellow]No duplicate files found in {dir_path}[/]", []
+            return f"[yellow]No duplicate files found in {normalized_dir_path}[/]", []
 
-        table = Table(title=f"Duplicate Files in {dir_path}", box=box.ROUNDED)
+        table = Table(title=f"Duplicate Files in {normalized_dir_path}", box=box.ROUNDED)
         table.add_column("Hash", style="cyan")
         table.add_column("Files", style="yellow")
         
@@ -607,7 +609,7 @@ def find_duplicate_files(dir_path="."):
             table.add_row(hash_val[:8], "\n".join(paths))
         
         console.print(table)
-        return f"Found {len(duplicates)} groups of duplicate files in {dir_path}", duplicates
+        return f"Found {len(duplicates)} groups of duplicate files in {normalized_dir_path}", duplicates
     except Exception as e:
         return f"[red]Error finding duplicates:[/] {str(e)}", []
 
@@ -651,7 +653,7 @@ def get_file_metadata(path=".", filename=None, attribute="all"):
     """Display metadata (size, creation date, modification date, permissions) for a file. Specify attribute ('size', 'creation_time', 'modification_time', 'permissions', or 'all') to filter output. Returns a string summary and None."""
     if not filename:
         return "[red]No filename provided.[/]", None
-    full = os.path.join(path, filename)
+    full = os.path.join(normalize_path(path), filename)
     if not os.path.isfile(full):
         return f"[red]File not found:[/] {full}", None
     try:
@@ -693,6 +695,492 @@ def get_file_metadata(path=".", filename=None, attribute="all"):
     except OSError as e:
         return f"[red]Error getting file metadata:[/] {str(e)}", None
 
+@tool
+def change_directory(path: str):
+    """Change the current working directory to the specified path. Returns a string summary and the new current directory."""
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found or inaccessible:[/] {normalized_path}", None
+    try:
+        os.chdir(normalized_path)
+        new_cwd = os.getcwd()
+        return f"[green]Changed directory to:[/] {new_cwd}", new_cwd
+    except OSError as e:
+        return f"[red]Error changing directory to {normalized_path}:[/] {str(e)}", None
+
+@tool
+def list_directory_tree(path: str = ".", max_depth: int = 3):
+    """
+    List the hierarchical structure of files and directories recursively up to a specified depth.
+    Returns a string summary and a list of paths in the tree.
+    Args:
+        path: The root directory to start listing from.
+        max_depth: The maximum depth to traverse (0 for current directory only, 1 for current + immediate children, etc.).
+    """
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found or inaccessible:[/] {normalized_path}", []
+
+    tree_root = Tree(f"[bold blue]{normalized_path}[/]", guide_style="bold bright_blue")
+    all_paths = []
+
+    def build_tree(current_path, current_tree, current_depth):
+        if current_depth > max_depth:
+            return
+
+        try:
+            for entry in os.listdir(current_path):
+                full_path = os.path.join(current_path, entry)
+                all_paths.append(full_path)
+                if os.path.isdir(full_path):
+                    branch = current_tree.add(Text(entry, style="bold green") + "/")
+                    build_tree(full_path, branch, current_depth + 1)
+                elif os.path.isfile(full_path):
+                    current_tree.add(Text(entry, style="cyan"))
+        except OSError as e:
+            current_tree.add(Text(f"[red]Error accessing {current_path}: {str(e)}[/]", style="red"))
+
+    build_tree(normalized_path, tree_root, 0)
+    console.print(tree_root)
+    return f"[green]Directory tree for {normalized_path} displayed (max depth: {max_depth}).[/]", all_paths
+
+@tool
+def get_directory_size(path: str = "."):
+    """
+    Calculate the total size of a directory, including all its subdirectories and files.
+    Returns a string summary and the size in bytes.
+    Args:
+        path: The directory path to calculate size for.
+    """
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found or inaccessible:[/] {normalized_path}", None
+
+    total_size = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(normalized_path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                # Skip symbolic links that point to non-existent files
+                if not os.path.islink(fp):
+                    try:
+                        total_size += os.path.getsize(fp)
+                    except OSError:
+                        # Ignore files that cannot be accessed (e.g., permission denied)
+                        continue
+    except Exception as e:
+        return f"[red]Error calculating directory size for {normalized_path}:[/] {str(e)}", None
+
+    def format_size(size_bytes):
+        if size_bytes < 1024:
+            return f"{size_bytes} bytes"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.2f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.2f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+    formatted_size = format_size(total_size)
+    console.print(f"[green]Total size of directory '{normalized_path}': {formatted_size}[/]")
+    return f"Total size of directory '{normalized_path}': {formatted_size}", total_size
+
+@tool
+def set_file_permissions(path: str = ".", filename: str = None, permissions: str = None):
+    """
+    Set file permissions (e.g., '755', '644') for a specified file after user confirmation.
+    Returns a string summary and None.
+    Args:
+        path: Directory path containing the file.
+        filename: Name of the file to set permissions for.
+        permissions: Octal string representing permissions (e.g., '755' for rwxr-xr-x).
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", None
+    if not permissions:
+        return "[red]No permissions provided.[/]", None
+
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    try:
+        # Convert octal string (e.g., '755') to integer (e.g., 0o755)
+        mode = int(permissions, 8)
+    except ValueError:
+        return f"[red]Invalid permissions format: '{permissions}'. Please use an octal string like '755'.[/]", None
+
+    try:
+        current_permissions = oct(os.stat(full_path).st_mode & 0o777)[2:]
+        console.print(f"[yellow]Current permissions for '{full_path}': {current_permissions}[/]")
+        console.print(f"[yellow]Are you sure you want to change permissions to '{permissions}' for '{full_path}'? (y/n)[/]")
+        response = input().strip().lower()
+        if response != "y":
+            return f"[yellow]Setting permissions for {full_path} cancelled.[/]", None
+
+        os.chmod(full_path, mode)
+        new_permissions = oct(os.stat(full_path).st_mode & 0o777)[2:]
+        return f"[green]Permissions for {full_path} changed from {current_permissions} to {new_permissions}[/]", None
+    except OSError as e:
+        return f"[red]Error setting permissions for {full_path}:[/] {str(e)}", None
+    except EOFError:
+        return f"[red]No input provided. Setting permissions for {full_path} cancelled.[/]", None
+
+@tool
+def copy_directory(source_path: str, destination_path: str):
+    """
+    Copy an entire directory tree from source_path to destination_path.
+    If destination_path already exists and is not empty, it will prompt for overwrite.
+    Returns a string summary and None.
+    Args:
+        source_path: The path of the directory to copy.
+        destination_path: The path where the directory should be copied to.
+    """
+    normalized_source = normalize_path(source_path)
+    normalized_dest = normalize_path(destination_path)
+
+    if not os.path.isdir(normalized_source):
+        return f"[red]Source directory not found or inaccessible:[/] {normalized_source}", None
+    
+    if os.path.exists(normalized_dest):
+        if os.listdir(normalized_dest): # Check if directory is not empty
+            console.print(f"[yellow]Destination directory '{normalized_dest}' exists and is not empty. Overwrite? (y/n)[/]")
+            response = input().strip().lower()
+            if response != "y":
+                return f"[yellow]Directory copy cancelled[/]", None
+            try:
+                shutil.rmtree(normalized_dest) # Remove existing non-empty directory
+                console.print(f"[yellow]Removed existing destination directory: {normalized_dest}[/]")
+            except OSError as e:
+                return f"[red]Error removing existing destination directory:[/] {str(e)}", None
+        else:
+            # If it exists but is empty, shutil.copytree will handle it, but we can make it explicit
+            pass 
+
+    try:
+        shutil.copytree(normalized_source, normalized_dest)
+        return f"[green]Directory copied:[/] {normalized_source} → {normalized_dest}", None
+    except shutil.Error as e:
+        return f"[red]Error copying directory:[/] {str(e)}", None
+    except OSError as e:
+        return f"[red]Error copying directory:[/] {str(e)}", None
+    except EOFError:
+        return f"[red]No input provided. Directory copy cancelled.[/]", None
+
+@tool
+def move_directory(source_path: str, destination_path: str):
+    """
+    Move an entire directory from source_path to destination_path.
+    If destination_path already exists, it will prompt for overwrite.
+    Returns a string summary and None.
+    Args:
+        source_path: The path of the directory to move.
+        destination_path: The path where the directory should be moved to.
+    """
+    normalized_source = normalize_path(source_path)
+    normalized_dest = normalize_path(destination_path)
+
+    if not os.path.isdir(normalized_source):
+        return f"[red]Source directory not found or inaccessible:[/] {normalized_source}", None
+    
+    if os.path.exists(normalized_dest):
+        console.print(f"[yellow]Destination '{normalized_dest}' already exists. Overwrite? (y/n)[/]")
+        response = input().strip().lower()
+        if response != "y":
+            return f"[yellow]Directory move cancelled[/]", None
+        try:
+            if os.path.isdir(normalized_dest):
+                shutil.rmtree(normalized_dest)
+            else:
+                os.remove(normalized_dest)
+            console.print(f"[yellow]Removed existing destination: {normalized_dest}[/]")
+        except OSError as e:
+            return f"[red]Error removing existing destination:[/] {str(e)}", None
+
+    try:
+        shutil.move(normalized_source, normalized_dest)
+        return f"[green]Directory moved:[/] {normalized_source} → {normalized_dest}", None
+    except shutil.Error as e:
+        return f"[red]Error moving directory:[/] {str(e)}", None
+    except OSError as e:
+        return f"[red]Error moving directory:[/] {str(e)}", None
+    except EOFError:
+        return f"[red]No input provided. Directory move cancelled.[/]", None
+
+@tool
+def get_file_hash(filename: str, path: str = ".", algorithm: str = 'md5'):
+    """
+    Calculate the cryptographic hash of a specified file.
+    Returns a string summary and the hash value.
+    Args:
+        filename: The name of the file to hash.
+        path: The directory path containing the file.
+        algorithm: The hashing algorithm to use ('md5', 'sha1', 'sha256', 'sha512').
+    """
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    hash_algorithms = {
+        'md5': hashlib.md5,
+        'sha1': hashlib.sha1,
+        'sha256': hashlib.sha256,
+        'sha512': hashlib.sha512
+    }
+
+    if algorithm.lower() not in hash_algorithms:
+        return f"[red]Invalid hashing algorithm: '{algorithm}'. Choose from {', '.join(hash_algorithms.keys())}.[/]", None
+
+    hasher = hash_algorithms[algorithm.lower()]()
+    try:
+        with open(full_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hasher.update(chunk)
+        file_hash = hasher.hexdigest()
+        console.print(f"[green]Hash ({algorithm.upper()}) for '{full_path}': {file_hash}[/]")
+        return f"Hash ({algorithm.upper()}) for '{full_path}': {file_hash}", file_hash
+    except OSError as e:
+        return f"[red]Error reading file for hashing:[/] {str(e)}", None
+
+@tool
+def create_archive(source_path: str, destination_directory: str = ".", archive_name: str = None, format: str = 'zip'):
+    """
+    Create an archive (e.g., zip, tar) from a file or directory.
+    Returns a string summary and the path to the created archive.
+    Args:
+        source_path: The path to the file or directory to archive.
+        destination_directory: The directory where the archive file will be created.
+        archive_name: The base name of the archive file (e.g., 'my_archive').
+                      If None, defaults to the base name of the source_path.
+                      The format extension will be added automatically.
+        format: The archive format ('zip', 'tar', 'gztar', 'bztar', 'xztar').
+    """
+    normalized_source = normalize_path(source_path)
+    normalized_dest_dir = normalize_path(destination_directory)
+    
+    if not os.path.exists(normalized_source):
+        return f"[red]Source path not found:[/] {normalized_source}", None
+    
+    if not os.path.isdir(normalized_dest_dir):
+        try:
+            os.makedirs(normalized_dest_dir, exist_ok=True)
+        except OSError as e:
+            return f"[red]Error creating destination directory '{normalized_dest_dir}':[/] {str(e)}", None
+
+    if archive_name is None:
+        archive_name = os.path.basename(normalized_source)
+
+    try:
+        root_dir_for_archive = os.path.dirname(normalized_source)
+        base_dir_for_archive = os.path.basename(normalized_source)
+
+        full_archive_base_name = os.path.join(normalized_dest_dir, archive_name)
+
+        archive_full_path = shutil.make_archive(
+            full_archive_base_name,
+            format,
+            root_dir=root_dir_for_archive,
+            base_dir=base_dir_for_archive
+        )
+        console.print(f"[green]Archive created:[/] {archive_full_path}")
+        return f"Archive created: {archive_full_path}", archive_full_path
+    except ValueError as e:
+        return f"[red]Invalid archive format or path issue:[/] {str(e)}", None
+    except shutil.Error as e:
+        return f"[red]Error creating archive:[/] {str(e)}", None
+    except Exception as e:
+        return f"[red]An unexpected error occurred during archiving:[/] {str(e)}", None
+
+@tool
+def extract_archive(archive_path: str, destination_path: str = "."):
+    """
+    Extract the contents of an archive file to a specified directory.
+    Returns a string summary and the destination path.
+    Args:
+        archive_path: The path to the archive file (e.g., 'my_archive.zip').
+        destination_path: The directory where the contents should be extracted.
+    """
+    normalized_archive = normalize_path(archive_path)
+    normalized_dest = normalize_path(destination_path)
+
+    if not os.path.isfile(normalized_archive):
+        return f"[red]Archive file not found:[/] {normalized_archive}", None
+    
+    if not os.path.isdir(normalized_dest):
+        try:
+            os.makedirs(normalized_dest, exist_ok=True)
+        except OSError as e:
+            return f"[red]Error creating destination directory '{normalized_dest}':[/] {str(e)}", None
+
+    try:
+        shutil.unpack_archive(normalized_archive, normalized_dest)
+        console.print(f"[green]Archive extracted:[/] {normalized_archive} → {normalized_dest}[/]")
+        return f"Archive extracted: {normalized_archive} to {normalized_dest}", normalized_dest
+    except shutil.ReadError:
+        return f"[red]Error: Archive format not recognized or file is corrupted:[/] {normalized_archive}", None
+    except Exception as e:
+        return f"[red]Error extracting archive:[/] {str(e)}", None
+
+@tool
+def compare_files(file1_path: str, file2_path: str):
+    """
+    Compare the content of two files.
+    Returns a string summary and a boolean indicating if they are identical.
+    Args:
+        file1_path: The path to the first file.
+        file2_path: The path to the second file.
+    """
+    normalized_file1 = normalize_path(file1_path)
+    normalized_file2 = normalize_path(file2_path)
+
+    if not os.path.isfile(normalized_file1):
+        return f"[red]File not found:[/] {normalized_file1}", False
+    if not os.path.isfile(normalized_file2):
+        return f"[red]File not found:[/] {normalized_file2}", False
+
+    try:
+        are_identical = filecmp.cmp(normalized_file1, normalized_file2, shallow=False)
+        if are_identical:
+            result_msg = f"[green]Files '{normalized_file1}' and '{normalized_file2}' are identical.[/]"
+        else:
+            result_msg = f"[yellow]Files '{normalized_file1}' and '{normalized_file2}' are different.[/]"
+        console.print(result_msg)
+        return result_msg, are_identical
+    except Exception as e:
+        return f"[red]Error comparing files:[/] {str(e)}", False
+
+@tool
+def create_temp_file(suffix: str = '', prefix: str = 'tmp', directory: str = None):
+    """
+    Create a temporary file. The file is created in a secure manner.
+    Returns a string summary and the absolute path to the created temporary file.
+    Args:
+        suffix: The suffix for the file name (e.g., '.txt').
+        prefix: The prefix for the file name (e.g., 'my_temp_').
+        directory: The directory where the temporary file should be created. If None, uses system default temp directory.
+    """
+    normalized_directory = normalize_path(directory) if directory else None
+    try:
+        # NamedTemporaryFile creates a file that is automatically deleted when closed
+        # We need to keep it open to get its name, then close it, and return the name.
+        # The user/agent is responsible for writing to it and deleting it later.
+        # Using mkstemp for more control over deletion.
+        fd, path = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=normalized_directory)
+        os.close(fd) # Close the file descriptor immediately
+        console.print(f"[green]Temporary file created:[/] {path}[/]")
+        return f"Temporary file created: {path}", path
+    except Exception as e:
+        return f"[red]Error creating temporary file:[/] {str(e)}", None
+
+@tool
+def create_temp_directory(prefix: str = 'tmp', directory: str = None):
+    """
+    Create a temporary directory. The directory is created in a secure manner.
+    Returns a string summary and the absolute path to the created temporary directory.
+    Args:
+        prefix: The prefix for the directory name (e.g., 'my_temp_dir_').
+        directory: The directory where the temporary directory should be created. If None, uses system default temp directory.
+    """
+    normalized_directory = normalize_path(directory) if directory else None
+    try:
+        path = tempfile.mkdtemp(prefix=prefix, dir=normalized_directory)
+        console.print(f"[green]Temporary directory created:[/] {path}[/]")
+        return f"Temporary directory created: {path}", path
+    except Exception as e:
+        return f"[red]Error creating temporary directory:[/] {str(e)}", None
+
+@tool
+def empty_cleanup(path: str = '.', delete_empty_dirs: bool = False, delete_empty_files: bool = False):
+    """
+    Find and optionally delete empty files and/or empty directories within a specified path (recursively).
+    Returns a string summary and lists of deleted items.
+    Args:
+        path: The root directory to start cleanup from.
+        delete_empty_dirs: If True, empty directories will be deleted after confirmation.
+        delete_empty_files: If True, empty files will be deleted after confirmation.
+    """
+    normalized_path = normalize_path(path)
+    if not os.path.isdir(normalized_path):
+        return f"[red]Directory not found or inaccessible:[/] {normalized_path}", ([], [])
+
+    found_empty_files = []
+    found_empty_dirs = []
+    deleted_files = []
+    deleted_dirs = []
+
+    # First pass: find empty files and directories
+    for root, dirs, files in os.walk(normalized_path, topdown=False): # topdown=False for deleting empty dirs correctly
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                if os.path.isfile(file_path) and os.path.getsize(file_path) == 0:
+                    found_empty_files.append(file_path)
+            except OSError:
+                continue # Skip inaccessible files
+
+        for dir_name in dirs:
+            dir_path = os.path.join(root, dir_name)
+            try:
+                if os.path.isdir(dir_path) and not os.listdir(dir_path):
+                    found_empty_dirs.append(dir_path)
+            except OSError:
+                continue # Skip inaccessible directories
+
+    summary_messages = []
+
+    # Handle empty files
+    if found_empty_files:
+        console.print(f"[yellow]Found {len(found_empty_files)} empty file(s) in '{normalized_path}':[/]")
+        for f in found_empty_files:
+            console.print(f"- {f}")
+        if delete_empty_files:
+            console.print(f"[yellow]Are you sure you want to delete these {len(found_empty_files)} empty file(s)? (y/n)[/]")
+            response = input().strip().lower()
+            if response == "y":
+                for f in found_empty_files:
+                    try:
+                        os.remove(f)
+                        deleted_files.append(f)
+                        console.print(f"[green]Deleted empty file:[/] {f}")
+                    except OSError as e:
+                        console.print(f"[red]Error deleting empty file {f}:[/] {str(e)}")
+                summary_messages.append(f"Deleted {len(deleted_files)} empty file(s).")
+            else:
+                summary_messages.append(f"Deletion of {len(found_empty_files)} empty file(s) cancelled.")
+        else:
+            summary_messages.append(f"Found {len(found_empty_files)} empty file(s). Deletion not requested.")
+    else:
+        summary_messages.append("No empty files found.")
+
+    # Handle empty directories
+    if found_empty_dirs:
+        console.print(f"[yellow]Found {len(found_empty_dirs)} empty director(y/ies) in '{normalized_path}':[/]")
+        for d in found_empty_dirs:
+            console.print(f"- {d}")
+        if delete_empty_dirs:
+            console.print(f"[yellow]Are you sure you want to delete these {len(found_empty_dirs)} empty director(y/ies)? (y/n)[/]")
+            response = input().strip().lower()
+            if response == "y":
+                for d in found_empty_dirs:
+                    try:
+                        os.rmdir(d) # rmdir only works if directory is truly empty
+                        deleted_dirs.append(d)
+                        console.print(f"[green]Deleted empty directory:[/] {d}")
+                    except OSError as e:
+                        console.print(f"[red]Error deleting empty directory {d}:[/] {str(e)}")
+                summary_messages.append(f"Deleted {len(deleted_dirs)} empty director(y/ies).")
+            else:
+                summary_messages.append(f"Deletion of {len(found_empty_dirs)} empty director(y/ies) cancelled.")
+        else:
+            summary_messages.append(f"Found {len(found_empty_dirs)} empty director(y/ies). Deletion not requested.")
+    else:
+        summary_messages.append("No empty directories found.")
+
+    final_summary = "[green]Cleanup complete:[/]\n" + "\n".join(summary_messages)
+    console.print(final_summary)
+    return final_summary, (deleted_files, deleted_dirs)
+
+
 def normalize_path(path: str) -> str:
     """Normalize a path, handling relative paths and Windows drive letters. Returns the normalized path."""
     import platform
@@ -705,6 +1193,9 @@ def normalize_path(path: str) -> str:
     if lower_path in ("previous to previous directory", "two levels up", "../.."):
         return "../.."
     
+    # Expand user home directory (e.g., ~ or ~user)
+    path = os.path.expanduser(path)
+
     # Handle Windows drive letters (e.g., 'C:', 'D:', 'C:\\')
     if platform.system() == "Windows":
         if re.match(r'^[a-zA-Z]:$', lower_path):  # Matches 'C:', 'D:'
@@ -874,6 +1365,7 @@ def choose_tool(natural_language_input, conversation_history=None):
         f"{TOOLS_DOC}\n"
         f"Interpret relative paths like 'previous directory' as '..', "
          "'previous to previous directory' or 'two levels up' as '../..'.\n"
+        f"Also, interpret '~' or '~/Downloads' as the user's home directory or a path relative to it.\n"
         f"Analyze the user's command to determine if it is a single-step or multi-step task.\n"
         f"For single-step tasks, execute the tool, validate with file_exists or os.path.isdir (for directories), and set done to true.\n"
         f"For multi-step tasks, execute tools sequentially, validate with file_exists or os.path.isdir, and set done to true only in the final validation step.\n"
@@ -975,9 +1467,11 @@ def main():
         if tool in TOOL_REGISTRY:
             tool_entry = TOOL_REGISTRY[tool]
 
-            for key in ["path", "source_path", "dest_path"]:
-                if key in args:
-                    args[key] = normalize_path(args[key])
+            # Normalize paths for arguments that are paths
+            # This is handled within each tool function for robustness, but keeping this for general args
+            # for key in ["path", "source_path", "dest_path", "destination_directory", "archive_path"]:
+            #     if key in args:
+            #         args[key] = normalize_path(args[key])
         
             try:
                 func = tool_entry["function"]
@@ -989,15 +1483,19 @@ def main():
                 # ONLY mark done if user_input does NOT contain "and then"
                 if tool in [
                     "view_file", "find_frequent_word", "search_file_content",
-                    "search_files_by_name", "count_lines_in_file", "get_file_metadata"
+                    "search_files_by_name", "count_lines_in_file", "get_file_metadata",
+                    "get_directory_size", "list_directory_tree", "get_file_hash",
+                    "compare_files", "create_temp_file", "create_temp_directory" # Added new tools
                 ]:
                     done = done or (" and then " not in user_input.lower())
 
-                if tool in ["delete_file", "delete_directory", "file_exists", "create_directory"]:
+                if tool in ["delete_file", "delete_directory", "file_exists", "create_directory", 
+                            "set_file_permissions", "copy_directory", "move_directory", 
+                            "create_archive", "extract_archive", "empty_cleanup"]: # Added new tools
                     if "cancelled" not in result.lower():
                         validation_count += 1
 
-                if tool in ["delete_directory"] and "cancelled" in result.lower():
+                if tool in ["delete_directory", "set_file_permissions", "copy_directory", "move_directory", "empty_cleanup"] and "cancelled" in result.lower(): # Added new tools
                     continue
 
             except Exception as e:
@@ -1023,4 +1521,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
