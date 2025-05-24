@@ -298,6 +298,23 @@ Replace `'your natural language command here'` with the specific task you want t
     uv run git_agent/git_agent.py 'get local config for remote.origin.url'
     ```
 
+## Git Repository Structure
+
+-   Show the entire Git repository folder structure:
+    ```bash
+    uv run git_agent/git_agent.py 'show git folder structure'
+    ```
+
+-   Show the Git folder structure of a specific directory (e.g., `file_agent`):
+    ```bash
+    uv run git_agent/git_agent.py 'show git folder structure of file_agent directory'
+    ```
+
+-   Show the Git folder structure with a maximum depth (e.g., `git_agent` directory with depth 1):
+    ```bash
+    uv run git_agent/git_agent.py 'show git folder structure of git_agent directory with max depth 1'
+    ```
+
 ## Multi-step Commands
 
 -   Add all files, then commit them with a message, then push to origin main:

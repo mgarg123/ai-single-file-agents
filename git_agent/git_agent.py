@@ -9,6 +9,7 @@ from rich.table import Table
 from rich import box
 from rich.text import Text
 from rich.panel import Panel
+from rich.tree import Tree # Added import for Tree
 from groq import Groq
 
 from dotenv import load_dotenv
@@ -1231,6 +1232,91 @@ def git_list_tags(pattern: str = None):
     console.print(table)
     return "Git tags listed. See console for details.", output
 
+@tool
+def git_ls_tree(path: str = ".", max_depth: int = None):
+    """List the file and folder structure of the Git repository from a given path.
+    Args:
+        path (str, optional): The path within the repository to start listing from. Defaults to ".".
+        max_depth (int, optional): The maximum depth to traverse (0 for current directory only, 1 for direct children, etc.). Defaults to None (no limit).
+    Returns:
+        Tuple[str, str]: A string summary for the LLM and the raw git ls-tree output.
+    """
+    # Get all tracked files and directories
+    summary_msg, output, returncode = _run_git_command(["ls-tree", "-r", "--name-only", "HEAD"])
+
+    if returncode != 0:
+        console.print(Panel(f"[red]Error getting Git tree:[/]\n{summary_msg}", title="[bold red]Git Tree Error[/]", border_style="red"))
+        return summary_msg, output
+
+    if not output:
+        console.print(Panel("[yellow]No files found in the Git repository.[/]", title="[bold blue]Git Tree[/]", border_style="yellow"))
+        return "No files found in the Git repository.", output
+
+    all_tracked_paths = output.splitlines()
+    
+    # Normalize the input path
+    normalized_input_path = os.path.normpath(path).replace("\\", "/")
+    if normalized_input_path == ".":
+        normalized_input_path = ""
+    elif not normalized_input_path.endswith("/") and normalized_input_path != "":
+        normalized_input_path += "/"
+
+    # Filter paths relevant to the input path and make them relative
+    relevant_paths = []
+    for p in all_tracked_paths:
+        if p.startswith(normalized_input_path):
+            relative_to_input = p[len(normalized_input_path):]
+            if relative_to_input: # Exclude empty string if input path is root
+                relevant_paths.append(relative_to_input)
+    
+    if not relevant_paths and normalized_input_path != "":
+        # Check if the path itself is a file
+        if path in all_tracked_paths:
+            console.print(Panel(f"[yellow]'{path}' is a file, not a directory. Cannot list its contents as a tree.[/]", title="[bold yellow]Git Tree Warning[/]", border_style="yellow"))
+            return f"'{path}' is a file, not a directory. Cannot list its contents as a tree.", output
+        else:
+            console.print(Panel(f"[yellow]No tracked files or directories found under '{path}'.[/]", title="[bold yellow]Git Tree Warning[/]", border_style="yellow"))
+            return f"No tracked files or directories found under '{path}'.", output
+
+    # Create the root node for the tree display
+    root_label = path if path != "." else "Current Repository Root"
+    root_tree = Tree(f"[bold blue]{root_label}[/]")
+    
+    # Dictionary to store references to Tree nodes by their relative path
+    # This helps in adding children to the correct parent node
+    node_map = {"": root_tree} # Map empty string to root_tree for easier lookup
+
+    # Sort paths to ensure consistent tree display
+    relevant_paths.sort()
+
+    for rel_path in relevant_paths:
+        parts = rel_path.split('/')
+        
+        current_parent_path = ""
+
+        for i, part in enumerate(parts):
+            current_path_segment = os.path.join(current_parent_path, part).replace("\\", "/")
+            is_last_part = (i == len(parts) - 1)
+
+            # Check if this segment exceeds max_depth relative to the input path
+            if max_depth is not None and i > max_depth:
+                break # Stop adding children if max_depth is exceeded
+
+            if current_path_segment not in node_map:
+                parent_node = node_map[current_parent_path]
+                
+                if is_last_part and not rel_path.endswith('/'): # It's a file
+                    new_node = parent_node.add(Text(part, style="white"))
+                else: # It's a directory (or a part of a directory path)
+                    new_node = parent_node.add(Text(part + "/", style="bold green"))
+                
+                node_map[current_path_segment] = new_node
+            
+            current_parent_path = current_path_segment
+    
+    console.print(root_tree)
+    return f"Git file and folder structure displayed for '{path}'. See console for details.", output
+
 
 def generate_tools_doc():
     tool_docs = []
@@ -1502,6 +1588,18 @@ Step 1: {{"tool": "git_config_get", "args": {{"key": "user.email", "scope": "glo
 Command: "list all tags starting with v2"
 Total operations: 1
 Step 1: {{"tool": "git_list_tags", "args": {{"pattern": "v2*"}}, "done": true}}
+</example>
+
+<example>
+Command: "show git folder structure"
+Total operations: 1
+Step 1: {{"tool": "git_ls_tree", "args": {{"path": ".", "max_depth": null}}, "done": true}}
+</example>
+
+<example>
+Command: "show git folder structure of file_agent directory with max depth 1"
+Total operations: 1
+Step 1: {{"tool": "git_ls_tree", "args": {{"path": "file_agent", "max_depth": 1}}, "done": true}}
 </example>
 </examples>
 
