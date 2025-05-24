@@ -41,7 +41,10 @@ def tool(func):
 
 @tool
 def check_os():
-    """Check the current operating system. Returns a string summary and None."""
+    """Check the current operating system.
+    Returns:
+        Tuple[str, None]: A string summary of the operating system and None.
+    """
     import platform
     os_name = platform.system()
     if os_name == "Windows":
@@ -56,8 +59,11 @@ def check_os():
 
 @tool
 def system_resources(resource: str):
-    """
-    Returns system resource usage including free RAM and available disk space based on the passed resource type that is either RAM or DISK.
+    """Returns system resource usage including free RAM and available disk space.
+    Args:
+        resource (str): The type of resource to check, either "RAM" or "DISK".
+    Returns:
+        Tuple[str, None]: A string summary of the resource usage and None.
     """
 
     try:
@@ -94,7 +100,10 @@ def system_resources(resource: str):
 
 @tool
 def get_root_directory():
-    """Get the topmost root directory for the current operating system. Returns a string summary and the root directory path."""
+    """Get the topmost root directory for the current operating system.
+    Returns:
+        Tuple[str, str]: A string summary and the root directory path.
+    """
     import os
     import platform
     if platform.system() == "Windows":
@@ -107,7 +116,10 @@ def get_root_directory():
 
 @tool
 def get_command_line_directory():
-    """Get the absolute path of the directory from which the script is invoked. Returns a string summary and the absolute path."""
+    """Get the absolute path of the directory from which the script is invoked.
+    Returns:
+        Tuple[str, str]: A string summary and the absolute path of the command-line directory.
+    """
     import os
     import sys
     # Get the directory of the script being run (sys.argv[0] is the script path)
@@ -117,7 +129,12 @@ def get_command_line_directory():
 
 @tool
 def list_files(path="."):
-    """List all files (not directories) in the given directory. Returns a string summary and a list of filenames. If no path is provided, use current directory."""
+    """List all files (not directories) in the given directory.
+    Args:
+        path (str, optional): The directory to list files from. Defaults to ".".
+    Returns:
+        Tuple[str, list]: A string summary and a list of filenames.
+    """
     import os
     
     # Normalize the path
@@ -138,7 +155,13 @@ def list_files(path="."):
 
 @tool
 def view_file(path=".", filename=None):
-    """Show contents of a file in the given directory. Returns a string summary and None."""
+    """Show contents of a file in the given directory.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to view.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(path, filename)
@@ -152,7 +175,14 @@ def view_file(path=".", filename=None):
 
 @tool
 def rename_file(path=".", filename=None, new_filename=None):
-    """Rename a file at the given path to the specified new filename. Returns a string summary and None."""
+    """Rename a file at the given path to the specified new filename.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The current name of the file to rename.
+        new_filename (str): The new name for the file.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     if not new_filename:
@@ -186,7 +216,13 @@ def rename_file(path=".", filename=None, new_filename=None):
 
 @tool
 def find_frequent_word(path=".", filename=None):
-    """Find the most frequently repeated word in the specified file. Returns a string summary and None."""
+    """Find the most frequently repeated word in the specified file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to analyze.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(path, filename)
@@ -204,7 +240,14 @@ def find_frequent_word(path=".", filename=None):
 
 @tool
 def create_file(path=".", filename=None, content=None):
-    """Create a new file with the specified content in the given directory. Returns a string summary and None."""
+    """Create a new file with the specified content in the given directory.
+    Args:
+        path (str, optional): The directory where the file will be created. Defaults to ".".
+        filename (str): The name of the file to create.
+        content (str, optional): The content to write to the file. Defaults to "".
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     if content is None:
@@ -232,7 +275,13 @@ def create_file(path=".", filename=None, content=None):
 
 @tool
 def delete_file(path=".", filename=None):
-    """Delete the specified file in the given directory after user confirmation. Returns a string summary and None."""
+    """Delete the specified file in the given directory after user confirmation.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to delete.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(path, filename)
@@ -252,16 +301,30 @@ def delete_file(path=".", filename=None):
 
 @tool
 def file_exists(path=".", filename=None):
-    """Check if a file exists in the given directory. Returns a string summary and None."""
+    """Check if a file exists in the given directory.
+    Args:
+        path (str, optional): The directory to check. Defaults to ".".
+        filename (str): The name of the file to check for existence.
+    Returns:
+        Tuple[str, bool]: A string summary and a boolean indicating if the file exists.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(path, filename)
     exists = os.path.isfile(full)
-    return f"[green]File {'exists' if exists else 'does not exist'}:[/] {full}", None
+    return f"[green]File {'exists' if exists else 'does not exist'}:[/] {full}", exists
 
 @tool
 def add_content_to_file(path=".", filename=None, content=None, append=True):
-    """Add content to a file in the given directory. If append is True, appends content; if False, overwrites. Returns a string summary and None."""
+    """Add content to a file in the given directory.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to add content to.
+        content (str): The content to add.
+        append (bool, optional): If True, appends content; if False, overwrites. Defaults to True.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     if content is None:
@@ -280,10 +343,15 @@ def add_content_to_file(path=".", filename=None, content=None, append=True):
 
 @tool
 def copy_file(source_path=".", filename=None, dest_path=".", dest_filename=None):
-    """
-    Copy a file from source_path to dest_path.
+    """Copy a file from source_path to dest_path.
     Optionally, rename the file in the destination using dest_filename.
-    Returns a string summary and None.
+    Args:
+        source_path (str, optional): The directory containing the source file. Defaults to ".".
+        filename (str): The name of the file to copy.
+        dest_path (str, optional): The destination directory. Defaults to ".".
+        dest_filename (str, optional): The new name for the file in the destination. If None, uses original filename. Defaults to None.
+    Returns:
+        Tuple[str, None]: A string summary and None.
     """
     if not filename:
         return "[red]No filename provided.[/]", None
@@ -306,7 +374,14 @@ def copy_file(source_path=".", filename=None, dest_path=".", dest_filename=None)
 
 @tool
 def move_file(source_path=".", filename=None, dest_path="."):
-    """Move a file from source_path to dest_path. Returns a string summary and None."""
+    """Move a file from source_path to dest_path.
+    Args:
+        source_path (str, optional): The directory containing the source file. Defaults to ".".
+        filename (str): The name of the file to move.
+        dest_path (str, optional): The destination directory. Defaults to ".".
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     source_full = os.path.join(normalize_path(source_path), filename)
@@ -322,7 +397,12 @@ def move_file(source_path=".", filename=None, dest_path="."):
 
 @tool
 def create_directory(path="."):
-    """Create a new directory at the specified path. Returns a string summary and None."""
+    """Create a new directory at the specified path.
+    Args:
+        path (str, optional): The path where the directory will be created. Defaults to ".".
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     normalized_path = normalize_path(path)
     if os.path.exists(normalized_path):
         console.print(f"[yellow]Directory '{normalized_path}' already exists. Overwrite? (y/n)[/]")
@@ -343,7 +423,12 @@ def create_directory(path="."):
 
 @tool
 def delete_directory(path="."):
-    """Delete a directory at the specified path, even if it is not empty, after user confirmation. Returns a string summary and None."""
+    """Delete a directory at the specified path, even if it is not empty, after user confirmation.
+    Args:
+        path (str, optional): The path of the directory to delete. Defaults to ".".
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
         return f"[red]Directory not found:[/] {normalized_path}", None
@@ -359,7 +444,13 @@ def delete_directory(path="."):
 
 @tool
 def search_files_by_name(path=".", pattern=None):
-    """Search for files by name matching the pattern in the given directory. Returns a string summary and a list of matching filenames."""
+    """Search for files by name matching the pattern in the given directory.
+    Args:
+        path (str, optional): The directory to search in. Defaults to ".".
+        pattern (str): The filename pattern to search for (e.g., "*.txt", "report?.*").
+    Returns:
+        Tuple[str, list]: A string summary and a list of matching filenames.
+    """
     if not pattern:
         return "[red]No pattern provided.[/]", []
     normalized_path = normalize_path(path)
@@ -382,7 +473,15 @@ def search_files_by_name(path=".", pattern=None):
 
 @tool
 def replace_text_in_file(path=".", filename=None, old_text=None, new_text=None):
-    """Replace all occurrences of old_text with new_text in the specified file. Returns a string summary and None."""
+    """Replace all occurrences of old_text with new_text in the specified file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to modify.
+        old_text (str): The text to be replaced.
+        new_text (str): The text to replace with.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     if not old_text:
@@ -404,7 +503,13 @@ def replace_text_in_file(path=".", filename=None, old_text=None, new_text=None):
 
 @tool
 def count_lines_in_file(path=".", filename=None):
-    """Count the total number of lines in the specified file. Returns a string summary and None."""
+    """Count the total number of lines in the specified file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to count lines in.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(normalize_path(path), filename)
@@ -419,12 +524,12 @@ def count_lines_in_file(path=".", filename=None):
 
 @tool
 def find_large_files(min_size_mb: float, path="."):
-    """
-    Find files larger than specified MB size in a directory (searches recursively). 
-    Returns a string summary and list of large files.
+    """Find files larger than specified MB size in a directory (searches recursively).
     Args:
-        min_size_mb: Minimum file size in megabytes to search for
-        path: Directory path to search in
+        min_size_mb (float): Minimum file size in megabytes to search for.
+        path (str, optional): Directory path to search in. Defaults to ".".
+    Returns:
+        Tuple[str, list]: A string summary and a list of large files (path, size in MB).
     """
     import os
     try:
@@ -461,12 +566,12 @@ def find_large_files(min_size_mb: float, path="."):
 
 @tool
 def search_text_across_files(pattern: str, directory="."):
-    """
-    Search for a regex pattern across all text files in a directory (searches recursively).
-    Returns a string summary and list of matches with line numbers.
+    """Search for a regex pattern across all text files in a directory (searches recursively).
     Args:
-        pattern: Regular expression pattern to search for
-        directory: Root directory to search from
+        pattern (str): Regular expression pattern to search for.
+        directory (str, optional): Root directory to search from. Defaults to ".".
+    Returns:
+        Tuple[str, list]: A string summary and a list of matches with line numbers.
     """
     import os
     try:
@@ -522,14 +627,13 @@ def search_text_across_files(pattern: str, directory="."):
 
 @tool
 def search_file_content(path=".", filename=None, search_term=None):
-    """
-    Search for text content in a file. Returns matching lines with numbers.
+    """Search for text content in a file.
     Args:
-        path: Directory path containing the file
-        filename: Name of file to search
-        search_term: Text to search for (case-insensitive)
+        path (str, optional): Directory path containing the file. Defaults to ".".
+        filename (str): Name of file to search.
+        search_term (str): Text to search for (case-insensitive).
     Returns:
-        Tuple of (result message, list of matching lines)
+        Tuple[str, list]: A string summary and a list of matching lines.
     """
     if not filename:
         return "[red]No filename provided.[/]", []
@@ -560,7 +664,12 @@ def search_file_content(path=".", filename=None, search_term=None):
 
 @tool
 def list_directories(path="."):
-    """List all directories (not files) in the given directory. Returns a string summary and a list of directory names."""
+    """List all directories (not files) in the given directory.
+    Args:
+        path (str, optional): The directory to list directories from. Defaults to ".".
+    Returns:
+        Tuple[str, list]: A string summary and a list of directory names.
+    """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
         return f"[red]Directory not found:[/] {normalized_path}", []
@@ -574,11 +683,11 @@ def list_directories(path="."):
 
 @tool
 def find_duplicate_files(dir_path="."):
-    """
-    Find duplicate files by content hash in a directory (searches recursively).
-    Returns a string summary and list of duplicate groups.
+    """Find duplicate files by content hash in a directory (searches recursively).
     Args:
-        dir_path: Directory path to search in
+        dir_path (str, optional): Directory path to search in. Defaults to ".".
+    Returns:
+        Tuple[str, dict]: A string summary and a dictionary of duplicate groups (hash: [paths]).
     """
     import hashlib
     from collections import defaultdict
@@ -615,10 +724,12 @@ def find_duplicate_files(dir_path="."):
 
 @tool
 def remove_duplicates(dir_path="."):
-    """
-    Auto-remove redundant file copies with user confirmation. 
+    """Auto-remove redundant file copies with user confirmation.
     Keeps the first file in each duplicate group and deletes others.
-    Returns a string summary and None.
+    Args:
+        dir_path (str, optional): Directory path to search for and remove duplicates. Defaults to ".".
+    Returns:
+        Tuple[str, None]: A string summary and None.
     """
     try:
         # First find duplicates
@@ -650,7 +761,14 @@ def remove_duplicates(dir_path="."):
 
 @tool
 def get_file_metadata(path=".", filename=None, attribute="all"):
-    """Display metadata (size, creation date, modification date, permissions) for a file. Specify attribute ('size', 'creation_time', 'modification_time', 'permissions', or 'all') to filter output. Returns a string summary and None."""
+    """Display metadata (size, creation date, modification date, permissions) for a file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to get metadata for.
+        attribute (str, optional): Specific metadata attribute to display ('size', 'creation_time', 'modification_time', 'permissions', or 'all'). Defaults to "all".
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
     if not filename:
         return "[red]No filename provided.[/]", None
     full = os.path.join(normalize_path(path), filename)
@@ -697,7 +815,12 @@ def get_file_metadata(path=".", filename=None, attribute="all"):
 
 @tool
 def change_directory(path: str):
-    """Change the current working directory to the specified path. Returns a string summary and the new current directory."""
+    """Change the current working directory to the specified path.
+    Args:
+        path (str): The path to change the current working directory to.
+    Returns:
+        Tuple[str, str]: A string summary and the new current directory path.
+    """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
         return f"[red]Directory not found or inaccessible:[/] {normalized_path}", None
@@ -710,12 +833,12 @@ def change_directory(path: str):
 
 @tool
 def list_directory_tree(path: str = ".", max_depth: int = 3):
-    """
-    List the hierarchical structure of files and directories recursively up to a specified depth.
-    Returns a string summary and a list of paths in the tree.
+    """List the hierarchical structure of files and directories recursively up to a specified depth.
     Args:
-        path: The root directory to start listing from.
-        max_depth: The maximum depth to traverse (0 for current directory only, 1 for current + immediate children, etc.).
+        path (str, optional): The root directory to start listing from. Defaults to ".".
+        max_depth (int, optional): The maximum depth to traverse (0 for current directory only, 1 for current + immediate children, etc.). Defaults to 3.
+    Returns:
+        Tuple[str, list]: A string summary and a list of paths in the tree.
     """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
@@ -746,11 +869,11 @@ def list_directory_tree(path: str = ".", max_depth: int = 3):
 
 @tool
 def get_directory_size(path: str = "."):
-    """
-    Calculate the total size of a directory, including all its subdirectories and files.
-    Returns a string summary and the size in bytes.
+    """Calculate the total size of a directory, including all its subdirectories and files.
     Args:
-        path: The directory path to calculate size for.
+        path (str, optional): The directory path to calculate size for. Defaults to ".".
+    Returns:
+        Tuple[str, int]: A string summary and the total size in bytes.
     """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
@@ -787,13 +910,13 @@ def get_directory_size(path: str = "."):
 
 @tool
 def set_file_permissions(path: str = ".", filename: str = None, permissions: str = None):
-    """
-    Set file permissions (e.g., '755', '644') for a specified file after user confirmation.
-    Returns a string summary and None.
+    """Set file permissions (e.g., '755', '644') for a specified file after user confirmation.
     Args:
-        path: Directory path containing the file.
-        filename: Name of the file to set permissions for.
-        permissions: Octal string representing permissions (e.g., '755' for rwxr-xr-x).
+        path (str, optional): Directory path containing the file. Defaults to ".".
+        filename (str): Name of the file to set permissions for.
+        permissions (str): Octal string representing permissions (e.g., '755' for rwxr-xr-x).
+    Returns:
+        Tuple[str, None]: A string summary and None.
     """
     if not filename:
         return "[red]No filename provided.[/]", None
@@ -828,13 +951,13 @@ def set_file_permissions(path: str = ".", filename: str = None, permissions: str
 
 @tool
 def copy_directory(source_path: str, destination_path: str):
-    """
-    Copy an entire directory tree from source_path to destination_path.
+    """Copy an entire directory tree from source_path to destination_path.
     If destination_path already exists and is not empty, it will prompt for overwrite.
-    Returns a string summary and None.
     Args:
-        source_path: The path of the directory to copy.
-        destination_path: The path where the directory should be copied to.
+        source_path (str): The path of the directory to copy.
+        destination_path (str): The path where the directory should be copied to.
+    Returns:
+        Tuple[str, None]: A string summary and None.
     """
     normalized_source = normalize_path(source_path)
     normalized_dest = normalize_path(destination_path)
@@ -869,13 +992,13 @@ def copy_directory(source_path: str, destination_path: str):
 
 @tool
 def move_directory(source_path: str, destination_path: str):
-    """
-    Move an entire directory from source_path to destination_path.
+    """Move an entire directory from source_path to destination_path.
     If destination_path already exists, it will prompt for overwrite.
-    Returns a string summary and None.
     Args:
-        source_path: The path of the directory to move.
-        destination_path: The path where the directory should be moved to.
+        source_path (str): The path of the directory to move.
+        destination_path (str): The path where the directory should be moved to.
+    Returns:
+        Tuple[str, None]: A string summary and None.
     """
     normalized_source = normalize_path(source_path)
     normalized_dest = normalize_path(destination_path)
@@ -909,13 +1032,13 @@ def move_directory(source_path: str, destination_path: str):
 
 @tool
 def get_file_hash(filename: str, path: str = ".", algorithm: str = 'md5'):
-    """
-    Calculate the cryptographic hash of a specified file.
-    Returns a string summary and the hash value.
+    """Calculate the cryptographic hash of a specified file.
     Args:
-        filename: The name of the file to hash.
-        path: The directory path containing the file.
-        algorithm: The hashing algorithm to use ('md5', 'sha1', 'sha256', 'sha512').
+        filename (str): The name of the file to hash.
+        path (str, optional): The directory path containing the file. Defaults to ".".
+        algorithm (str, optional): The hashing algorithm to use ('md5', 'sha1', 'sha256', 'sha512'). Defaults to 'md5'.
+    Returns:
+        Tuple[str, str]: A string summary and the hash value.
     """
     full_path = os.path.join(normalize_path(path), filename)
     if not os.path.isfile(full_path):
@@ -944,16 +1067,14 @@ def get_file_hash(filename: str, path: str = ".", algorithm: str = 'md5'):
 
 @tool
 def create_archive(source_path: str, destination_directory: str = ".", archive_name: str = None, format: str = 'zip'):
-    """
-    Create an archive (e.g., zip, tar) from a file or directory.
-    Returns a string summary and the path to the created archive.
+    """Create an archive (e.g., zip, tar) from a file or directory.
     Args:
-        source_path: The path to the file or directory to archive.
-        destination_directory: The directory where the archive file will be created.
-        archive_name: The base name of the archive file (e.g., 'my_archive').
-                      If None, defaults to the base name of the source_path.
-                      The format extension will be added automatically.
-        format: The archive format ('zip', 'tar', 'gztar', 'bztar', 'xztar').
+        source_path (str): The path to the file or directory to archive.
+        destination_directory (str, optional): The directory where the archive file will be created. Defaults to ".".
+        archive_name (str, optional): The base name of the archive file (e.g., 'my_archive'). If None, defaults to the base name of the source_path. The format extension will be added automatically. Defaults to None.
+        format (str, optional): The archive format ('zip', 'tar', 'gztar', 'bztar', 'xztar'). Defaults to 'zip'.
+    Returns:
+        Tuple[str, str]: A string summary and the path to the created archive.
     """
     normalized_source = normalize_path(source_path)
     normalized_dest_dir = normalize_path(destination_directory)
@@ -993,12 +1114,12 @@ def create_archive(source_path: str, destination_directory: str = ".", archive_n
 
 @tool
 def extract_archive(archive_path: str, destination_path: str = "."):
-    """
-    Extract the contents of an archive file to a specified directory.
-    Returns a string summary and the destination path.
+    """Extract the contents of an archive file to a specified directory.
     Args:
-        archive_path: The path to the archive file (e.g., 'my_archive.zip').
-        destination_path: The directory where the contents should be extracted.
+        archive_path (str): The path to the archive file (e.g., 'my_archive.zip').
+        destination_path (str, optional): The directory where the contents should be extracted. Defaults to ".".
+    Returns:
+        Tuple[str, str]: A string summary and the destination path.
     """
     normalized_archive = normalize_path(archive_path)
     normalized_dest = normalize_path(destination_path)
@@ -1023,12 +1144,12 @@ def extract_archive(archive_path: str, destination_path: str = "."):
 
 @tool
 def compare_files(file1_path: str, file2_path: str):
-    """
-    Compare the content of two files.
-    Returns a string summary and a boolean indicating if they are identical.
+    """Compare the content of two files.
     Args:
-        file1_path: The path to the first file.
-        file2_path: The path to the second file.
+        file1_path (str): The path to the first file.
+        file2_path (str): The path to the second file.
+    Returns:
+        Tuple[str, bool]: A string summary and a boolean indicating if they are identical.
     """
     normalized_file1 = normalize_path(file1_path)
     normalized_file2 = normalize_path(file2_path)
@@ -1051,13 +1172,13 @@ def compare_files(file1_path: str, file2_path: str):
 
 @tool
 def create_temp_file(suffix: str = '', prefix: str = 'tmp', directory: str = None):
-    """
-    Create a temporary file. The file is created in a secure manner.
-    Returns a string summary and the absolute path to the created temporary file.
+    """Create a temporary file. The file is created in a secure manner.
     Args:
-        suffix: The suffix for the file name (e.g., '.txt').
-        prefix: The prefix for the file name (e.g., 'my_temp_').
-        directory: The directory where the temporary file should be created. If None, uses system default temp directory.
+        suffix (str, optional): The suffix for the file name (e.g., '.txt'). Defaults to ''.
+        prefix (str, optional): The prefix for the file name (e.g., 'my_temp_'). Defaults to 'tmp'.
+        directory (str, optional): The directory where the temporary file should be created. If None, uses system default temp directory. Defaults to None.
+    Returns:
+        Tuple[str, str]: A string summary and the absolute path to the created temporary file.
     """
     normalized_directory = normalize_path(directory) if directory else None
     try:
@@ -1074,12 +1195,12 @@ def create_temp_file(suffix: str = '', prefix: str = 'tmp', directory: str = Non
 
 @tool
 def create_temp_directory(prefix: str = 'tmp', directory: str = None):
-    """
-    Create a temporary directory. The directory is created in a secure manner.
-    Returns a string summary and the absolute path to the created temporary directory.
+    """Create a temporary directory. The directory is created in a secure manner.
     Args:
-        prefix: The prefix for the directory name (e.g., 'my_temp_dir_').
-        directory: The directory where the temporary directory should be created. If None, uses system default temp directory.
+        prefix (str, optional): The prefix for the directory name (e.g., 'my_temp_dir_'). Defaults to 'tmp'.
+        directory (str, optional): The directory where the temporary directory should be created. If None, uses system default temp directory. Defaults to None.
+    Returns:
+        Tuple[str, str]: A string summary and the absolute path to the created temporary directory.
     """
     normalized_directory = normalize_path(directory) if directory else None
     try:
@@ -1091,13 +1212,13 @@ def create_temp_directory(prefix: str = 'tmp', directory: str = None):
 
 @tool
 def empty_cleanup(path: str = '.', delete_empty_dirs: bool = False, delete_empty_files: bool = False):
-    """
-    Find and optionally delete empty files and/or empty directories within a specified path (recursively).
-    Returns a string summary and lists of deleted items.
+    """Find and optionally delete empty files and/or empty directories within a specified path (recursively).
     Args:
-        path: The root directory to start cleanup from.
-        delete_empty_dirs: If True, empty directories will be deleted after confirmation.
-        delete_empty_files: If True, empty files will be deleted after confirmation.
+        path (str, optional): The root directory to start cleanup from. Defaults to ".".
+        delete_empty_dirs (bool, optional): If True, empty directories will be deleted after confirmation. Defaults to False.
+        delete_empty_files (bool, optional): If True, empty files will be deleted after confirmation. Defaults to False.
+    Returns:
+        Tuple[str, Tuple[list, list]]: A string summary and a tuple containing lists of deleted files and deleted directories.
     """
     normalized_path = normalize_path(path)
     if not os.path.isdir(normalized_path):
