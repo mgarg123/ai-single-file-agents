@@ -14,8 +14,10 @@ from groq import Groq
 from collections import Counter
 import shutil
 import psutil
-import filecmp # Added import for filecmp
-import tempfile # Added import for tempfile
+import filecmp
+import tempfile
+import difflib # Added import for difflib
+import base64 # Added import for base64
 
 from dotenv import load_dotenv
 
@@ -1301,6 +1303,288 @@ def empty_cleanup(path: str = '.', delete_empty_dirs: bool = False, delete_empty
     console.print(final_summary)
     return final_summary, (deleted_files, deleted_dirs)
 
+@tool
+def read_file_segment(path=".", filename=None, start_line: int = 1, end_line: int = None, num_lines: int = None):
+    """Read a specific segment (lines) from a file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to read.
+        start_line (int, optional): The 1-based starting line number. Defaults to 1.
+        end_line (int, optional): The 1-based ending line number (inclusive). If None, reads to end. Defaults to None.
+        num_lines (int, optional): If provided, reads this many lines from start_line, or the last N lines if start_line is not specified (i.e., reads from end). Overrides end_line if both are present. Defaults to None.
+    Returns:
+        Tuple[str, list]: A string summary and a list of the read lines.
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", []
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", []
+
+    try:
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            all_lines = f.readlines()
+        
+        total_lines = len(all_lines)
+        
+        if num_lines is not None:
+            if start_line == 1: # Read first N lines
+                lines_to_read = all_lines[:num_lines]
+                summary_msg = f"Read first {len(lines_to_read)} lines from {full_path}."
+            else: # Read last N lines
+                lines_to_read = all_lines[-num_lines:]
+                summary_msg = f"Read last {len(lines_to_read)} lines from {full_path}."
+        else:
+            # Adjust to 0-based indexing
+            start_idx = max(0, start_line - 1)
+            end_idx = total_lines if end_line is None else min(total_lines, end_line)
+            
+            if start_idx >= total_lines:
+                return f"[yellow]Start line {start_line} is beyond file end. No content read.[/]", []
+            
+            lines_to_read = all_lines[start_idx:end_idx]
+            summary_msg = f"Read lines {start_line} to {end_line if end_line is not None else 'end'} from {full_path}."
+
+        if not lines_to_read:
+            return f"[yellow]No content found in the specified segment of {full_path}.[/]", []
+
+        console.rule(f"[bold green]Content from {full_path} (Lines {start_line}-{end_line if end_line else 'end'})[/]")
+        for line in lines_to_read:
+            console.print(line.strip())
+        
+        return summary_msg, [line.strip() for line in lines_to_read]
+    except Exception as e:
+        return f"[red]Error reading file segment:[/] {str(e)}", []
+
+@tool
+def insert_content_at_line(path=".", filename=None, content: str = "", line_number: int = 1):
+    """Insert content at a specific line number in a file.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to modify.
+        content (str): The content to insert.
+        line_number (int, optional): The 1-based line number where content should be inserted. If 1, inserts at beginning. If greater than total lines, appends. Defaults to 1.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", None
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    try:
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        # Adjust to 0-based index
+        insert_idx = max(0, line_number - 1)
+        
+        # Ensure content ends with a newline if it's not empty and doesn't already
+        if content and not content.endswith('\n'):
+            content += '\n'
+
+        if insert_idx >= len(lines):
+            # If line_number is beyond current end, append
+            lines.append(content)
+            action = "appended to"
+        else:
+            lines.insert(insert_idx, content)
+            action = f"inserted at line {line_number} in"
+        
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        
+        return f"[green]Content {action} {full_path}.[/]", None
+    except Exception as e:
+        return f"[red]Error inserting content into file:[/] {str(e)}", None
+
+@tool
+def delete_lines_from_file(path=".", filename=None, start_line: int = None, end_line: int = None, pattern: str = None):
+    """Delete lines from a file based on a line range or a regex pattern.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to modify.
+        start_line (int, optional): The 1-based starting line number for deletion (inclusive). Defaults to None.
+        end_line (int, optional): The 1-based ending line number for deletion (inclusive). If None, deletes to end. Defaults to None.
+        pattern (str, optional): A regex pattern. If provided, deletes all lines matching this pattern. Overrides line range if both are present. Defaults to None.
+    Returns:
+        Tuple[str, None]: A string summary and None.
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", None
+    if start_line is None and end_line is None and pattern is None:
+        return "[red]No line range or pattern provided for deletion.[/]", None
+
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    try:
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+        
+        new_lines = []
+        deleted_count = 0
+
+        if pattern:
+            compiled_pattern = re.compile(pattern)
+            for line in lines:
+                if compiled_pattern.search(line):
+                    deleted_count += 1
+                else:
+                    new_lines.append(line)
+            summary_msg = f"Deleted {deleted_count} line(s) matching pattern '{pattern}' from {full_path}."
+        else:
+            # Adjust to 0-based indexing for line range
+            start_idx = max(0, (start_line or 1) - 1)
+            end_idx = len(lines) if end_line is None else min(len(lines), end_line)
+            
+            if start_idx >= len(lines):
+                return f"[yellow]Start line {start_line} is beyond file end. No lines deleted.[/]", None
+
+            for i, line in enumerate(lines):
+                if not (start_idx <= i < end_idx):
+                    new_lines.append(line)
+                else:
+                    deleted_count += 1
+            
+            summary_msg = f"Deleted {deleted_count} line(s) from line {start_line or 1} to {end_line if end_line is not None else 'end'} in {full_path}."
+        
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.writelines(new_lines)
+        
+        return f"[green]{summary_msg}[/]", None
+    except re.error as e:
+        return f"[red]Invalid regex pattern:[/] {str(e)}", None
+    except Exception as e:
+        return f"[red]Error deleting lines from file:[/] {str(e)}", None
+
+@tool
+def diff_files(file1_path: str, file2_path: str):
+    """Show the line-by-line differences between two text files.
+    Args:
+        file1_path (str): The path to the first file.
+        file2_path (str): The path to the second file.
+    Returns:
+        Tuple[str, list]: A string summary and a list of diff lines.
+    """
+    normalized_file1 = normalize_path(file1_path)
+    normalized_file2 = normalize_path(file2_path)
+
+    if not os.path.isfile(normalized_file1):
+        return f"[red]File not found:[/] {normalized_file1}", []
+    if not os.path.isfile(normalized_file2):
+        return f"[red]File not found:[/] {normalized_file2}", []
+
+    try:
+        with open(normalized_file1, 'r', encoding='utf-8', errors='ignore') as f1:
+            lines1 = f1.readlines()
+        with open(normalized_file2, 'r', encoding='utf-8', errors='ignore') as f2:
+            lines2 = f2.readlines()
+
+        d = difflib.Differ()
+        diff = list(d.compare(lines1, lines2))
+
+        if not diff:
+            return f"[yellow]No differences found between '{normalized_file1}' and '{normalized_file2}'.[/]", []
+        
+        console.rule(f"[bold green]Differences between {normalized_file1} and {normalized_file2}[/]")
+        for line in diff:
+            if line.startswith('+'):
+                console.print(f"[green]{line.strip()}[/]")
+            elif line.startswith('-'):
+                console.print(f"[red]{line.strip()}[/]")
+            elif line.startswith('?'):
+                console.print(f"[blue]{line.strip()}[/]")
+            else:
+                console.print(line.strip())
+        
+        return f"Differences between '{normalized_file1}' and '{normalized_file2}' displayed.", diff
+    except Exception as e:
+        return f"[red]Error generating diff:[/] {str(e)}", []
+
+@tool
+def encode_file_content(path=".", filename=None, encoding_format: str = 'base64'):
+    """Encode the content of a file using a specified encoding format.
+    Args:
+        path (str, optional): The directory containing the file. Defaults to ".".
+        filename (str): The name of the file to encode.
+        encoding_format (str, optional): The encoding format ('base64'). Defaults to 'base64'.
+    Returns:
+        Tuple[str, str]: A string summary and the encoded content.
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", None
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    if encoding_format.lower() != 'base64':
+        return f"[red]Unsupported encoding format: '{encoding_format}'. Only 'base64' is supported.[/]", None
+
+    try:
+        with open(full_path, 'rb') as f:
+            raw_content = f.read()
+        
+        if encoding_format.lower() == 'base64':
+            encoded_content = base64.b64encode(raw_content).decode('utf-8')
+            summary_msg = f"Content of '{full_path}' encoded to Base64."
+        else:
+            return f"[red]Internal error: Unhandled encoding format '{encoding_format}'.[/]", None
+        
+        console.print(f"[green]{summary_msg}[/]")
+        console.print(f"[cyan]Encoded content (first 100 chars):[/] {encoded_content[:100]}...")
+        return summary_msg, encoded_content
+    except Exception as e:
+        return f"[red]Error encoding file content:[/] {str(e)}", None
+
+@tool
+def decode_file_content(path=".", filename=None, encoding_format: str = 'base64', output_filename: str = None):
+    """Decode the content of an encoded file and optionally save it to a new file.
+    Args:
+        path (str, optional): The directory containing the encoded file. Defaults to ".".
+        filename (str): The name of the file containing the encoded content.
+        encoding_format (str, optional): The encoding format ('base64'). Defaults to 'base64'.
+        output_filename (str, optional): The name of the file to save the decoded content to. If None, returns content as string. Defaults to None.
+    Returns:
+        Tuple[str, str]: A string summary and the decoded content (or path to output file).
+    """
+    if not filename:
+        return "[red]No filename provided.[/]", None
+    full_path = os.path.join(normalize_path(path), filename)
+    if not os.path.isfile(full_path):
+        return f"[red]File not found:[/] {full_path}", None
+
+    if encoding_format.lower() != 'base64':
+        return f"[red]Unsupported decoding format: '{encoding_format}'. Only 'base64' is supported.[/]", None
+
+    try:
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            encoded_content = f.read()
+        
+        if encoding_format.lower() == 'base64':
+            decoded_bytes = base64.b64decode(encoded_content)
+            summary_msg = f"Content of '{full_path}' decoded from Base64."
+        else:
+            return f"[red]Internal error: Unhandled decoding format '{encoding_format}'.[/]", None
+        
+        if output_filename:
+            output_full_path = os.path.join(normalize_path(path), output_filename)
+            with open(output_full_path, 'wb') as f_out:
+                f_out.write(decoded_bytes)
+            console.print(f"[green]{summary_msg} Saved to '{output_full_path}'.[/]")
+            return f"{summary_msg} Saved to '{output_full_path}'.", output_full_path
+        else:
+            decoded_content_str = decoded_bytes.decode('utf-8', errors='ignore')
+            console.print(f"[green]{summary_msg}[/]")
+            console.print(f"[cyan]Decoded content (first 100 chars):[/] {decoded_content_str[:100]}...")
+            return summary_msg, decoded_content_str
+    except base64.binascii.Error:
+        return f"[red]Error: Content in '{full_path}' is not valid Base64 encoded data.[/]", None
+    except Exception as e:
+        return f"[red]Error decoding file content:[/] {str(e)}", None
+
 
 def normalize_path(path: str) -> str:
     """Normalize a path, handling relative paths and Windows drive letters. Returns the normalized path."""
@@ -1606,13 +1890,15 @@ def main():
                     "view_file", "find_frequent_word", "search_file_content",
                     "search_files_by_name", "count_lines_in_file", "get_file_metadata",
                     "get_directory_size", "list_directory_tree", "get_file_hash",
-                    "compare_files", "create_temp_file", "create_temp_directory" # Added new tools
+                    "compare_files", "create_temp_file", "create_temp_directory",
+                    "read_file_segment", "diff_files", "encode_file_content", "decode_file_content" # Added new tools
                 ]:
                     done = done or (" and then " not in user_input.lower())
 
                 if tool in ["delete_file", "delete_directory", "file_exists", "create_directory", 
                             "set_file_permissions", "copy_directory", "move_directory", 
-                            "create_archive", "extract_archive", "empty_cleanup"]: # Added new tools
+                            "create_archive", "extract_archive", "empty_cleanup",
+                            "insert_content_at_line", "delete_lines_from_file"]: # Added new tools
                     if "cancelled" not in result.lower():
                         validation_count += 1
 
