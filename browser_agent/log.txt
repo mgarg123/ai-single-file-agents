@@ -1,0 +1,51 @@
+
+C:\Users\Gargs PC\Code\py\ai-single-file-agents>uv run browser_agent/browser_agent.py "goto amazon.in and find iPhone16"
+──────────────────────────────────────────────── 🌐 AI Browser Agent (Natural Language CLI) ─────────────────────────────────────────────────
+LLM response message (raw): {
+  "content": null,
+  "role": "assistant",
+  "executed_tools": null,
+  "function_call": null,
+  "reasoning": null,
+  "tool_calls": [
+    {
+      "id": "call_8evy",
+      "function": {
+        "arguments": "{\"url\":\"https://www.amazon.in/\"}",
+        "name": "navigate_to_url"
+      },
+      "type": "function"
+    }
+  ]
+}
+Browser not launched. Use launch_browser first.
+LLM response message (raw): {
+  "content": null,
+  "role": "assistant",
+  "executed_tools": null,
+  "function_call": null,
+  "reasoning": null,
+  "tool_calls": [
+    {
+      "id": "call_mhsy",
+      "function": {
+        "arguments": "{\"browser_type\":\"chromium\",\"headless\":false}",
+        "name": "launch_browser"
+      },
+      "type": "function"
+    }
+  ]
+}
+Browser launched: chromium (headless=False)
+LLM response message (raw): {
+  "content": "<function=navigate_to_url={\"url\": \"https://www.amazon.in/\"}</function>",
+  "role": "assistant",
+  "executed_tools": null,
+  "function_call": null,
+  "reasoning": null,
+  "tool_calls": null
+}
+LLM did not suggest a tool call. Assuming task is complete or unclear.
+Task completed by LLM decision or no tool suggested.
+Ensuring browser is closed...
+Browser cleanup complete.

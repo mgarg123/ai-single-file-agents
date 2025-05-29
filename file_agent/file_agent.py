@@ -443,6 +443,8 @@ def delete_directory(path="."):
         return f"[green]Directory and its contents deleted:[/] {normalized_path}", None
     except Exception as e:
         return f"[red]Error deleting directory:[/] {str(e)}", None
+    except EOFError:
+        return f"[red]No input provided. Deletion of {normalized_path} cancelled.[/]", None
 
 @tool
 def search_files_by_name(path=".", pattern=None):
@@ -1343,12 +1345,12 @@ def read_file_segment(path=".", filename=None, start_line: int = 1, end_line: in
                 return f"[yellow]Start line {start_line} is beyond file end. No content read.[/]", []
             
             lines_to_read = all_lines[start_idx:end_idx]
-            summary_msg = f"Read lines {start_line} to {end_line if end_line is not None else 'end'} from {full_path}."
+            summary_msg = f"Read lines {start_line} to {end_idx if end_line is not None else 'end'} from {full_path}."
 
         if not lines_to_read:
             return f"[yellow]No content found in the specified segment of {full_path}.[/]", []
 
-        console.rule(f"[bold green]Content from {full_path} (Lines {start_line}-{end_line if end_line else 'end'})[/]")
+        console.rule(f"[bold green]Content from {full_path} (Lines {start_line}-{end_idx if end_line else 'end'})[/]")
         for line in lines_to_read:
             console.print(line.strip())
         
